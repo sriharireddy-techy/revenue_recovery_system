@@ -1,10 +1,11 @@
 from fastapi import FastAPI,Depends
 from pydantic import BaseModel
-from backend.database import engine, Base
+from backend.database import engine, Base,SessionLocal
 from backend.recovery import determine_action
-from backend.database import SessionLocal
 from backend import models
 from sqlalchemy.orm import Session
+from backend.audit import add_audit_log
+from backend.case_service import generate_case_id
 Base.metadata.create_all(bind=engine)
 def get_db():
     db=SessionLocal()
