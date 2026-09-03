@@ -4,24 +4,19 @@ from backend.database import Base
 class Payment(Base):
     __tablename__ = "payments"
     id = Column(Integer, primary_key=True, index=True)
-
     payment_id = Column(String, unique=True, index=True)
     customer_id = Column(String, index=True)
-
     amount = Column(Float)
-
     status = Column(String)
     failure_reason = Column(String, nullable=True)
-
     attempt_count = Column(Integer, default=0)
-
     created_at = Column(DateTime, default=datetime.utcnow)
 
 class RecoveryCase(Base):
     __tablename__ = "recovery_cases"
 
     id = Column(Integer, primary_key=True, index=True)
-     case_id = Column(String, unique=True, index=True)
+    case_id = Column(String, unique=True, index=True)
     payment_id = Column(String, index=True)
     customer_id = Column(String, index=True)
     state = Column(String, default="FAILED")
