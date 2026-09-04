@@ -1,6 +1,13 @@
-from backend.llm import ask_llm
-result = ask_llm(
-    "Explain what a failed payment means in one sentence."
+from backend.llm import analyze_payment
+
+
+decision = analyze_payment(
+    amount=2499,
+    failure_reason="unknown",
+    attempt_count=1
 )
 
-print(result)
+print("Failure type:", decision.failure_type)
+print("Action:", decision.action)
+print("Confidence:", decision.confidence)
+print("Reason:", decision.reason)
