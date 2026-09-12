@@ -10,6 +10,9 @@ from backend.case_service import generate_case_id
 from backend.audit import add_audit_log
 from backend.case_service import generate_case_id
 from backend.state_machine import can_transition
+from backend.recovery_service import run_recovery_analysis
+from fastapi import Depends, HTTPException
+from sqlalchemy.orm import Session
 
     
 Base.metadata.create_all(bind=engine)
@@ -161,3 +164,26 @@ def get_audit_logs(
     )
 
     return logs
+
+
+@app.post("/recovery/{case_id}/analyze")
+def analyze_recovery_case(
+    case_id: str,
+    db: Session = Depends(get_db)
+):
+
+    try:
+
+        result = run_recovery_analysis(
+            db=db,
+            case_id=case_id
+        )
+
+        return result
+
+    except ValueError as e:
+
+        raise HTTPException(
+            status_code=404,
+            detail=str(e)
+        )
