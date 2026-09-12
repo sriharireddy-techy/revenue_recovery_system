@@ -1,4 +1,5 @@
 from sqlalchemy.orm import Session
+from backend.action_tools import execute_recovery_action
 
 from backend.models import RecoveryCase
 from backend.agent import execute_tool
@@ -55,6 +56,20 @@ def run_recovery_analysis(
         attempt_count=payment["attempt_count"],
         payment_status=payment["status"]
     )
+    action_result = None
+
+    if final_action in [
+        "CREATE_PAYMENT_LINK",
+        "UPDATE_PAYMENT_METHOD"
+    ]:
+
+        action_result = execute_recovery_action(
+            action=final_action,
+            payment_id=payment["payment_id"],
+            customer_id=payment["customer_id"],
+            amount=payment["amount"]
+        )
+    
 
     # 6. Save AI decision
     case.recommended_action = decision.action
@@ -91,5 +106,6 @@ def run_recovery_analysis(
         "confidence": decision.confidence,
         "reason": decision.reason,
         "final_action": final_action,
-        "state": case.state
+        "state": case.state,
+        "action_result": action_result
     }
