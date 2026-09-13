@@ -19,11 +19,19 @@ class RecoveryCase(Base):
     case_id = Column(String, unique=True, index=True)
     payment_id = Column(String, index=True)
     customer_id = Column(String, index=True)
+
     state = Column(String, default="FAILED")
     recommended_action = Column(String, nullable=True)
     confidence = Column(Float, nullable=True)
     attempt_count = Column(Integer, default=0)
     last_result = Column(String, nullable=True)
+
+    # Razorpay recovery payment details
+    razorpay_payment_link_id = Column(String, nullable=True)
+    razorpay_payment_id = Column(String, nullable=True)
+    payment_link_url = Column(String, nullable=True)
+    payment_link_reference_id = Column(String, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(
         DateTime,
