@@ -2,7 +2,7 @@ from fastapi import FastAPI,Depends
 from pydantic import BaseModel
 from backend.database import engine, Base,SessionLocal
 from backend.recovery import determine_action
-from backend.models import AuditLog
+from backend.models import AuditLog,Payment,RecoveryCase, WebhookEvent
 from sqlalchemy.orm import Session
 from backend import models
 from backend.audit import add_audit_log
@@ -11,9 +11,12 @@ from backend.audit import add_audit_log
 from backend.case_service import generate_case_id
 from backend.state_machine import can_transition
 from backend.recovery_service import run_recovery_analysis
-from fastapi import Depends, HTTPException
+from fastapi import Depends, HTTPException,Request  
 from sqlalchemy.orm import Session
-
+import os,hmac,hashlib,json
+from dotenv import load_dotenv
+from backend.webhook_service import process_payment_event
+load_dotenv()
     
 Base.metadata.create_all(bind=engine)
 def get_db():
@@ -187,3 +190,97 @@ def analyze_recovery_case(
             status_code=404,
             detail=str(e)
         )
+        
+        
+        
+@app.post("/webhooks/razorpay")
+async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
+    body = await request.body()
+
+    signature = request.headers.get("X-Razorpay-Signature")
+
+    if not signature:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing Razorpay webhook signature"
+        )
+
+    webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET")
+
+    if not webhook_secret:
+        raise HTTPException(
+            status_code=500,
+            detail="Webhook secret is not configured"
+        )
+
+    expected_signature = hmac.new(
+        webhook_secret.encode(),
+        body,
+        hashlib.sha256
+    ).hexdigest()
+    
+    if not hmac.compare_digest(expected_signature, signature):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid webhook signature"
+        )
+    event_id = request.headers.get("x-razorpay-event-id")
+    if not event_id:
+        raise HTTPException(
+            status_code=400,
+            detail="Missing Razorpay event ID"
+        )
+
+    existing_event = (
+        db.query(WebhookEvent)
+        .filter(WebhookEvent.event_id == event_id)
+        .first()
+    )
+
+    if existing_event:
+        return {
+            "status": "already_processed",
+            "event_id": event_id
+        }
+    data = json.loads(body.decode("utf-8"))
+
+    event_type = data.get("event")
+
+    webhook_event = WebhookEvent(
+        event_id=event_id,
+        event_type=event_type,
+        processed=True
+    )
+
+    db.add(webhook_event)
+    db.commit()
+    payment_data = (
+        data.get("payload", {})
+        .get("payment", {})
+        .get("entity", {})
+    )
+
+    payment_id = payment_data.get("id")
+    if not payment_id:
+        return {
+            "status": "ignored",
+            "reason": "Payment ID not found"
+        }
+        
+    result = process_payment_event(
+       db=db,
+        event_type=event_type,
+        payment_id=payment_id
+    )
+    return result
+    # print()
+    # print("========== RAZORPAY WEBHOOK ==========")
+    # print()
+    # print("Valid webhook received")
+    # print("Body:", body.decode("utf-8"))
+
+    # return {
+    #     "status": "received",
+    #     "event_id": event_id,
+    #     "event_type": event_type
+    # }

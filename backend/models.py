@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime
+from sqlalchemy import Column, Integer, String, Float, DateTime,Boolean
 from datetime import datetime
 from backend.database import Base
 class Payment(Base):
@@ -42,3 +42,12 @@ class AuditLog(Base):
     result = Column(String, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
     
+    
+class WebhookEvent(Base):
+    __tablename__ = "webhook_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+    event_id = Column(String, unique=True, index=True)
+    event_type = Column(String, nullable=True)
+    processed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
