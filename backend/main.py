@@ -260,27 +260,64 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
         .get("entity", {})
     )
 
-    payment_id = payment_data.get("id")
-    if not payment_id:
-        return {
-            "status": "ignored",
-            "reason": "Payment ID not found"
-        }
-        
-    result = process_payment_event(
-       db=db,
-        event_type=event_type,
-        payment_id=payment_id
-    )
-    return result
-    # print()
-    # print("========== RAZORPAY WEBHOOK ==========")
-    # print()
-    # print("Valid webhook received")
-    # print("Body:", body.decode("utf-8"))
+    payload = data.get("payload", {})
 
-    # return {
-    #     "status": "received",
-    #     "event_id": event_id,
-    #     "event_type": event_type
-    # }
+    payment_data = (
+        payload
+        .get("payment", {})
+        .get("entity", {})
+    )
+
+    payment_id = payment_data.get("id")
+
+    payment_link_data = (
+        payload
+        .get("payment_link", {})
+        .get("entity", {})
+    )
+
+    payment_link_id = payment_link_data.get("id")
+
+
+    if event_type == "payment_link.paid":
+
+        if not payment_id:
+            return {
+                "status": "ignored",
+                "reason": "Payment ID not found"
+            }
+
+        if not payment_link_id:
+            return {
+                "status": "ignored",
+                "reason": "Payment Link ID not found"
+            }
+
+    else:
+
+        if not payment_id:
+            return {
+                "status": "ignored",
+                "reason": "Payment ID not found"
+            }
+
+
+    result = process_payment_event(
+        db=db,
+        event_type=event_type,
+        payment_id=payment_id,
+        payment_link_id=payment_link_id
+    )
+
+    return result
+        # print()
+        # print("========== RAZORPAY WEBHOOK ==========")
+        # print()
+        # print("Valid webhook received")
+        # print("Body:", body.decode("utf-8"))
+
+        # return {
+        #     "status": "received",
+        #     "event_id": event_id,
+        #     "event_type": event_type
+        # }
