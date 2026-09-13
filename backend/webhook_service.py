@@ -8,7 +8,8 @@ def process_payment_event(
     db: Session,
     event_type: str,
     payment_id: str,
-    payment_link_id: str | None = None
+    payment_link_id: str | None = None,
+    payment_data: dict | None = None
 ):
     # ---------------------------------------------------------
     # PAYMENT LINK PAID
@@ -79,6 +80,10 @@ def process_payment_event(
         .filter(Payment.payment_id == payment_id)
         .first()
     )
+    
+# ---------------------------------------------------------
+# AUTOMATIC RECOVERY CASE CREATION
+# ---------------------------------------------------------
 
     if not payment:
         return {
@@ -93,6 +98,47 @@ def process_payment_event(
             payment.status = "failed"
 
         result = "Payment marked as failed"
+        
+          # ---------------------------------------------------------
+    # AUTOMATIC RECOVERY CASE CREATION
+    # ---------------------------------------------------------
+        existing_case = (
+            db.query(RecoveryCase)
+            .filter(
+                RecoveryCase.payment_id == payment_id
+            )
+            .first()
+        )
+
+        if not existing_case:
+
+            from backend.case_service import generate_case_id
+
+            case = RecoveryCase(
+                case_id=generate_case_id(),
+                payment_id=payment_id,
+                customer_id=payment.customer_id,
+                state="RECOVERY_PLANNED",
+                attempt_count=payment.attempt_count
+            )
+
+            db.add(case)
+            db.commit()
+            db.refresh(case)
+
+            add_audit_log(
+                db=db,
+                case_id=case.case_id,
+                event_type="RECOVERY_CASE_CREATED",
+                description="Recovery case automatically created from payment.failed",
+                decision="payment.failed",
+                result="RECOVERY_PLANNED"
+            )
+
+            created_case = case
+
+        else:
+            created_case = existing_case
 
     elif event_type == "payment.authorized":
 
@@ -131,13 +177,17 @@ def process_payment_event(
             if case.state not in ["SUCCESS", "CLOSED"]:
                 case.state = "SUCCESS"
                 case.last_result = "Payment captured"
+    elif event_type == "payment.failed":
 
-        elif event_type == "payment.failed":
+        # If this webhook just created a recovery case,
+        # keep it in RECOVERY_PLANNED.
+        if case.state == "RECOVERY_PLANNED":
+            case.last_result = "Payment failed - recovery case created"
 
-            # Ignore stale failure events
-            if case.state not in ["SUCCESS", "CLOSED"]:
-                case.state = "FAILED"
-                case.last_result = "Payment failed"
+        # Ignore stale failure events after recovery succeeds/closes.
+        elif case.state not in ["SUCCESS", "CLOSED"]:
+            case.state = "FAILED"
+            case.last_result = "Payment failed"
 
         db.commit()
         db.refresh(case)

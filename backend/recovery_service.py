@@ -54,7 +54,8 @@ def run_recovery_analysis(
         confidence=decision.confidence,
         amount=payment["amount"],
         attempt_count=payment["attempt_count"],
-        payment_status=payment["status"]
+        payment_status=payment["status"],
+        recovery_state=case.state
     )
     action_result = None
 
@@ -69,7 +70,22 @@ def run_recovery_analysis(
             customer_id=payment["customer_id"],
             amount=payment["amount"]
         )
-    
+        if (
+            final_action == "CREATE_PAYMENT_LINK"
+            and action_result
+            and action_result.get("status") == "created"
+        ):
+            case.razorpay_payment_link_id = action_result.get(
+                "payment_link_id"
+            )
+
+            case.payment_link_url = action_result.get(
+                "short_url"
+            )
+
+            case.payment_link_reference_id = action_result.get(
+                "reference_id"
+            )
 
     # 6. Save AI decision
     case.recommended_action = decision.action

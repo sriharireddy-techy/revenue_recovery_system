@@ -11,21 +11,43 @@ def validate_decision(
     confidence,
     amount,
     attempt_count,
-    payment_status
+    payment_status,
+    recovery_state=None
 ):
 
-    if payment_status == "captured":
+    # ---------------------------------------------------------
+    # STOP: Payment is already successful
+    # ---------------------------------------------------------
+    if payment_status in ["captured", "authorized"]:
         return "STOP"
 
+    # ---------------------------------------------------------
+    # STOP: Recovery was already completed
+    # ---------------------------------------------------------
+    if recovery_state in ["SUCCESS", "CLOSED"]:
+        return "STOP"
+
+    # ---------------------------------------------------------
+    # SAFETY: Unknown or invalid AI action
+    # ---------------------------------------------------------
     if action not in ALLOWED_ACTIONS:
         return "HUMAN_REVIEW"
 
-    if confidence < 0.75:
+    # ---------------------------------------------------------
+    # SAFETY: Missing or low confidence
+    # ---------------------------------------------------------
+    if confidence is None or confidence < 0.75:
         return "HUMAN_REVIEW"
 
+    # ---------------------------------------------------------
+    # SAFETY: High-value payment
+    # ---------------------------------------------------------
     if amount > 10000:
         return "HUMAN_REVIEW"
 
+    # ---------------------------------------------------------
+    # SAFETY: Too many attempts
+    # ---------------------------------------------------------
     if attempt_count >= 2:
         return "HUMAN_REVIEW"
 

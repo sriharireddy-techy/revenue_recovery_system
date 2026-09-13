@@ -15,7 +15,7 @@ payload = {
     "payload": {
         "payment": {
             "entity": {
-                "id": "pay_test_123",
+                "id": "pay_test_auto_003",
                 "status": "failed"
             }
         }
@@ -30,7 +30,7 @@ signature = hmac.new(
     hashlib.sha256
 ).hexdigest()
 
-event_id = "test_event_004"
+event_id = "auto_case_test_003"
 
 headers = {
     "X-Razorpay-Signature": signature,

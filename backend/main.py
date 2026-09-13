@@ -11,7 +11,7 @@ from backend.audit import add_audit_log
 from backend.case_service import generate_case_id
 from backend.state_machine import can_transition
 from backend.recovery_service import run_recovery_analysis
-from fastapi import Depends, HTTPException,Request  
+from fastapi import Depends, HTTPException,Request,BackgroundTasks
 from sqlalchemy.orm import Session
 import os,hmac,hashlib,json
 from dotenv import load_dotenv
@@ -190,11 +190,38 @@ def analyze_recovery_case(
             status_code=404,
             detail=str(e)
         )
+def automatic_recovery_analysis(case_id: str):
+    db = SessionLocal()
+
+    try:
+        from backend.recovery_service import run_recovery_analysis
+
+        result = run_recovery_analysis(
+            db=db,
+            case_id=case_id
+        )
+
+        print()
+        print("========== AUTOMATIC RECOVERY ==========")
+        print("Case ID:", case_id)
+        print("AI Action:", result["ai_action"])
+        print("Confidence:", result["confidence"])
+        print("Final Action:", result["final_action"])
+        print("State:", result["state"])
+
+    except Exception as e:
+        print()
+        print("========== AUTOMATIC RECOVERY ERROR ==========")
+        print("Case ID:", case_id)
+        print("Error:", str(e))
+
+    finally:
+        db.close()
         
         
         
 @app.post("/webhooks/razorpay")
-async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
+async def razorpay_webhook(request: Request,background_tasks: BackgroundTasks, db: Session = Depends(get_db)):
     body = await request.body()
 
     signature = request.headers.get("X-Razorpay-Signature")
@@ -306,8 +333,20 @@ async def razorpay_webhook(request: Request, db: Session = Depends(get_db)):
         db=db,
         event_type=event_type,
         payment_id=payment_id,
-        payment_link_id=payment_link_id
+        payment_link_id=payment_link_id,
+        payment_data=payment_data
     )
+
+    # Automatically start AI recovery for newly created
+    # recovery cases from payment.failed
+    if (
+        event_type == "payment.failed"
+        and result.get("recovery_case")
+    ):
+        background_tasks.add_task(
+            automatic_recovery_analysis,
+            result["recovery_case"]
+        )
 
     return result
         # print()
